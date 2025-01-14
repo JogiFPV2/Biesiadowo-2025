@@ -4,6 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +23,11 @@ import {
   X,
   Clock,
   Plus,
+  Phone,
+  MapPin,
+  StickyNote,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface MenuItem {
   id: string;
@@ -30,6 +35,11 @@ interface MenuItem {
   name: string;
   price: number;
   category: string;
+  ingredients?: {
+    id: string;
+    name: string;
+    category: string;
+  }[];
 }
 
 interface MenuCategory {
@@ -64,11 +74,34 @@ interface WaiterViewProps {
   menuCategories?: MenuCategory[];
   orders?: Order[];
   onNewOrder?: (order: Order) => void;
+  onUpdateOrder?: (order: Order) => void;
 }
 
 const defaultMenuItems: MenuItem[] = [
-  { id: "1", number: "1", name: "Margherita", price: 24.99, category: "1" },
-  { id: "2", number: "2", name: "Pepperoni", price: 27.99, category: "1" },
+  {
+    id: "1",
+    number: "1",
+    name: "Margherita",
+    price: 24.99,
+    category: "1",
+    ingredients: [
+      { id: "1", name: "Sos pomidorowy", category: "sosy" },
+      { id: "2", name: "Mozzarella", category: "sery" },
+      { id: "3", name: "Bazylia", category: "dodatki" },
+    ],
+  },
+  {
+    id: "2",
+    number: "2",
+    name: "Pepperoni",
+    price: 27.99,
+    category: "1",
+    ingredients: [
+      { id: "1", name: "Sos pomidorowy", category: "sosy" },
+      { id: "2", name: "Mozzarella", category: "sery" },
+      { id: "4", name: "Pepperoni", category: "miesa" },
+    ],
+  },
 ];
 
 const defaultCategories: MenuCategory[] = [
@@ -81,6 +114,7 @@ const WaiterView = ({
   menuCategories = defaultCategories,
   orders = [],
   onNewOrder = () => {},
+  onUpdateOrder = () => {},
 }: WaiterViewProps) => {
   const [selectedOrder, setSelectedOrder] = React.useState<Order | null>(null);
   const [currentOrder, setCurrentOrder] = React.useState<Partial<Order>>({
@@ -90,6 +124,8 @@ const WaiterView = ({
     status: "pending",
     orderTime: new Date(),
     pickupTime: new Date(Date.now() + 30 * 60000),
+    paymentMethod: "cash",
+    isPaid: false,
   });
 
   const getStatusColor = (status: Order["status"]) => {
@@ -158,13 +194,16 @@ const WaiterView = ({
       id: Math.random().toString(36).substr(2, 9),
       items: currentOrder.items,
       type: currentOrder.type as "dine-in",
-      paymentMethod: "cash",
-      isPaid: false,
+      paymentMethod: currentOrder.paymentMethod as "cash",
+      isPaid: currentOrder.isPaid || false,
       total: currentOrder.total || 0,
       isSaved: true,
       status: "pending",
       orderTime: new Date(),
-      pickupTime: new Date(Date.now() + 30 * 60000),
+      pickupTime: currentOrder.pickupTime || new Date(Date.now() + 30 * 60000),
+      address: currentOrder.address,
+      phone: currentOrder.phone,
+      notes: currentOrder.notes,
     };
 
     onNewOrder(newOrder);
@@ -175,138 +214,448 @@ const WaiterView = ({
       status: "pending",
       orderTime: new Date(),
       pickupTime: new Date(Date.now() + 30 * 60000),
+      paymentMethod: "cash",
+      isPaid: false,
     });
   };
 
-  const renderOrderCard = (order: Order) => (
-    <Dialog
-      key={order.id}
-      open={selectedOrder?.id === order.id}
-      onOpenChange={(open) => !open && setSelectedOrder(null)}
-    >
-      <button
-        onClick={() => setSelectedOrder(order)}
-        className={`p-2 rounded-lg border flex items-center gap-3 ${getStatusColor(
-          order.status,
-        )} ${order.isPaid ? "border-green-500" : "border-red-500"} hover:bg-accent/10 transition-colors w-full`}
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">#{order.id}</span>
-          {order.type === "dine-in" ? (
-            <Store className="h-4 w-4" />
-          ) : order.type === "takeout" ? (
-            <ShoppingBag className="h-4 w-4" />
-          ) : (
-            <Bike className="h-4 w-4" />
-          )}
+  const handleUpdateOrder = (updates: Partial<Order>) => {
+    if (!selectedOrder) return;
+    const updatedOrder = { ...selectedOrder, ...updates };
+    onUpdateOrder(updatedOrder);
+    setSelectedOrder(updatedOrder);
+  };
+
+  const addTimeToPickup = (minutes: number, order: Partial<Order>) => {
+    const currentPickupTime = order.pickupTime || new Date();
+    const newPickupTime = new Date(
+      currentPickupTime.getTime() + minutes * 60000,
+    );
+    return newPickupTime;
+  };
+
+  const OrderControls = ({
+    order,
+    onChange,
+  }: {
+    order: Partial<Order>;
+    onChange: (updates: Partial<Order>) => void;
+  }) => (
+    <div className="space-y-4">
+      {/* Time Controls */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            <span className="text-sm">
+              {order.orderTime?.toLocaleTimeString("pl-PL", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                onChange({ pickupTime: addTimeToPickup(5, order) })
+              }
+            >
+              +5
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                onChange({ pickupTime: addTimeToPickup(20, order) })
+              }
+            >
+              +20
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                onChange({ pickupTime: addTimeToPickup(60, order) })
+              }
+            >
+              +60
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Clock className="h-4 w-4" />
           <span className="text-sm">
-            {order.pickupTime.toLocaleTimeString("pl-PL", {
+            {order.pickupTime?.toLocaleTimeString("pl-PL", {
               hour: "2-digit",
               minute: "2-digit",
             })}
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-sm font-medium">{order.total.toFixed(2)}</span>
-          <span className="text-xs text-muted-foreground">zł</span>
+      </div>
+
+      {/* Order Type Icons */}
+      <div className="flex gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onChange({ type: "dine-in" })}
+          className={cn(
+            "h-10 w-10",
+            order.type === "dine-in" &&
+              "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+          )}
+        >
+          <Store className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onChange({ type: "takeout" })}
+          className={cn(
+            "h-10 w-10",
+            order.type === "takeout" &&
+              "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+          )}
+        >
+          <ShoppingBag className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onChange({ type: "delivery" })}
+          className={cn(
+            "h-10 w-10",
+            order.type === "delivery" &&
+              "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+          )}
+        >
+          <Bike className="h-4 w-4" />
+        </Button>
+
+        <div className="flex-1" />
+
+        {/* Payment Method */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onChange({ paymentMethod: "cash" })}
+          className={cn(
+            "h-10 w-10",
+            order.paymentMethod === "cash" &&
+              "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+          )}
+        >
+          <Banknote className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onChange({ paymentMethod: "card" })}
+          className={cn(
+            "h-10 w-10",
+            order.paymentMethod === "card" &&
+              "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+          )}
+        >
+          <CreditCard className="h-4 w-4" />
+        </Button>
+
+        {/* Payment Status */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onChange({ isPaid: !order.isPaid })}
+          className={cn(
+            "h-10 w-10",
+            order.isPaid &&
+              "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+          )}
+        >
+          <Check className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Delivery Fields */}
+      {order.type === "delivery" && (
+        <div className="space-y-4 border rounded-lg p-4">
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" /> Adres
+            </Label>
+            <Input
+              value={order.address || ""}
+              onChange={(e) => onChange({ address: e.target.value })}
+              placeholder="Ulica, numer domu/mieszkania"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Phone className="h-4 w-4" /> Telefon
+            </Label>
+            <Input
+              value={order.phone || ""}
+              onChange={(e) => onChange({ phone: e.target.value })}
+              placeholder="Numer telefonu"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <StickyNote className="h-4 w-4" /> Uwagi
+            </Label>
+            <Textarea
+              value={order.notes || ""}
+              onChange={(e) => onChange({ notes: e.target.value })}
+              placeholder="Dodatkowe informacje"
+            />
+          </div>
         </div>
-      </button>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Zamówienie #{order.id}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          {order.items.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between p-2 rounded-lg bg-accent/5"
-            >
-              <div>
-                <span className="font-medium">
-                  {item.quantity}x #{item.number} {item.name}
-                </span>
-              </div>
-              <span>{(item.price * item.quantity).toFixed(2)} zł</span>
-            </div>
-          ))}
-        </div>
-      </DialogContent>
-    </Dialog>
+      )}
+    </div>
   );
 
   return (
-    <div className="h-screen bg-background">
+    <div className="h-screen bg-background overflow-hidden">
       <div className="grid grid-cols-4 h-full">
-        {/* Orders Columns - Takes up 3 columns */}
-        <div className="col-span-3 grid grid-cols-3 gap-4 p-4">
-          {/* Pending Orders Column */}
-          <div className="space-y-2">
-            <h2 className="font-medium flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#FFA500]"></div>
-              Oczekujące ({statusGroups.pending.length})
-            </h2>
+        {/* Left Section - Orders and Menu */}
+        <div className="col-span-3 flex flex-col h-full overflow-hidden">
+          {/* Orders List */}
+          <div className="grid grid-cols-3 gap-4 p-4">
+            {/* Pending Orders Column */}
             <div className="space-y-2">
-              {statusGroups.pending.map(renderOrderCard)}
+              <h2 className="font-medium flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#FFA500]"></div>
+                Oczekujące ({statusGroups.pending.length})
+              </h2>
+              <div className="space-y-2">
+                {statusGroups.pending.map((order) => (
+                  <button
+                    key={order.id}
+                    onClick={() => setSelectedOrder(order)}
+                    className={`p-2 rounded-lg border flex items-center justify-between ${getStatusColor(
+                      order.status,
+                    )} ${order.isPaid ? "border-green-500" : "border-red-500"} hover:bg-accent/10 transition-colors w-full`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">#{order.id}</span>
+                      {order.type === "dine-in" ? (
+                        <Store className="h-4 w-4" />
+                      ) : order.type === "takeout" ? (
+                        <ShoppingBag className="h-4 w-4" />
+                      ) : (
+                        <Bike className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">
+                        {order.pickupTime.toLocaleTimeString("pl-PL", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-medium">
+                        {order.total.toFixed(2)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">zł</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Preparing Orders Column */}
+            <div className="space-y-2">
+              <h2 className="font-medium flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#4169E1]"></div>W
+                przygotowaniu ({statusGroups.preparing.length})
+              </h2>
+              <div className="space-y-2">
+                {statusGroups.preparing.map((order) => (
+                  <button
+                    key={order.id}
+                    onClick={() => setSelectedOrder(order)}
+                    className={`p-2 rounded-lg border flex items-center justify-between ${getStatusColor(
+                      order.status,
+                    )} ${order.isPaid ? "border-green-500" : "border-red-500"} hover:bg-accent/10 transition-colors w-full`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">#{order.id}</span>
+                      {order.type === "dine-in" ? (
+                        <Store className="h-4 w-4" />
+                      ) : order.type === "takeout" ? (
+                        <ShoppingBag className="h-4 w-4" />
+                      ) : (
+                        <Bike className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">
+                        {order.pickupTime.toLocaleTimeString("pl-PL", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-medium">
+                        {order.total.toFixed(2)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">zł</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Ready Orders Column */}
+            <div className="space-y-2">
+              <h2 className="font-medium flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#32CD32]"></div>
+                Gotowe ({statusGroups.ready.length})
+              </h2>
+              <div className="space-y-2">
+                {statusGroups.ready.map((order) => (
+                  <button
+                    key={order.id}
+                    onClick={() => setSelectedOrder(order)}
+                    className={`p-2 rounded-lg border flex items-center justify-between ${getStatusColor(
+                      order.status,
+                    )} ${order.isPaid ? "border-green-500" : "border-red-500"} hover:bg-accent/10 transition-colors w-full`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">#{order.id}</span>
+                      {order.type === "dine-in" ? (
+                        <Store className="h-4 w-4" />
+                      ) : order.type === "takeout" ? (
+                        <ShoppingBag className="h-4 w-4" />
+                      ) : (
+                        <Bike className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">
+                        {order.pickupTime.toLocaleTimeString("pl-PL", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-medium">
+                        {order.total.toFixed(2)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">zł</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Preparing Orders Column */}
-          <div className="space-y-2">
-            <h2 className="font-medium flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#4169E1]"></div>W
-              przygotowaniu ({statusGroups.preparing.length})
-            </h2>
-            <div className="space-y-2">
-              {statusGroups.preparing.map(renderOrderCard)}
-            </div>
-          </div>
+          {/* Menu Categories and Items */}
+          <div className="flex-1 border-t p-4 overflow-auto">
+            <Tabs defaultValue={menuCategories[0].id}>
+              <TabsList className="w-full justify-start">
+                {menuCategories.map((category) => (
+                  <TabsTrigger key={category.id} value={category.id}>
+                    {category.name}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-          {/* Ready Orders Column */}
-          <div className="space-y-2">
-            <h2 className="font-medium flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#32CD32]"></div>
-              Gotowe ({statusGroups.ready.length})
-            </h2>
-            <div className="space-y-2">
-              {statusGroups.ready.map(renderOrderCard)}
-            </div>
+              {menuCategories.map((category) => (
+                <TabsContent key={category.id} value={category.id}>
+                  <div className="grid grid-cols-4 gap-2">
+                    {menuItems
+                      .filter((item) => item.category === category.id)
+                      .map((item) => (
+                        <Button
+                          key={item.id}
+                          variant="outline"
+                          className="h-auto py-4 px-4 flex flex-col items-start space-y-1"
+                          onClick={() => addItemToOrder(item)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>#{item.number}</span>
+                            <span className="font-medium">{item.name}</span>
+                          </div>
+                          {item.ingredients && (
+                            <span className="text-xs text-muted-foreground">
+                              {item.ingredients
+                                .map((ing) => ing.name)
+                                .join(", ")}
+                            </span>
+                          )}
+                          <span className="text-sm text-muted-foreground">
+                            {item.price.toFixed(2)} zł
+                          </span>
+                        </Button>
+                      ))}
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
           </div>
         </div>
 
-        {/* Right Column - Menu and Current Order */}
-        <div className="border-l p-4 flex flex-col h-full">
-          {/* Current Order */}
-          <Card className="mb-4">
+        {/* Right Section - Order Details */}
+        <div className="border-l p-4 overflow-auto">
+          <Card>
             <CardHeader>
               <CardTitle>Nowe zamówienie</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {currentOrder.items?.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-2 rounded-lg bg-accent/5"
-                  >
-                    <div>
-                      <span className="font-medium">
-                        {item.quantity}x #{item.number} {item.name}
-                      </span>
+                <OrderControls
+                  order={currentOrder}
+                  onChange={(updates) =>
+                    setCurrentOrder((prev) => ({ ...prev, ...updates }))
+                  }
+                />
+
+                {/* Items List */}
+                {currentOrder.items?.map((item) => {
+                  const menuItem = menuItems.find((mi) => mi.id === item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      className="space-y-1 p-2 rounded-lg bg-accent/5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium">
+                            {item.quantity}x #{item.number} {item.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>
+                            {(item.price * item.quantity).toFixed(2)} zł
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeItemFromOrder(item.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {menuItem?.ingredients && (
+                        <div className="text-xs text-muted-foreground">
+                          {menuItem.ingredients
+                            .map((ing) => ing.name)
+                            .join(", ")}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span>{(item.price * item.quantity).toFixed(2)} zł</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeItemFromOrder(item.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {currentOrder.items?.length ? (
                   <div className="flex justify-between items-center pt-4 border-t">
@@ -331,46 +680,99 @@ const WaiterView = ({
               </div>
             </CardContent>
           </Card>
-
-          {/* Menu */}
-          <div className="flex-1 overflow-auto">
-            <Tabs defaultValue={menuCategories[0].id}>
-              <TabsList className="w-full justify-start">
-                {menuCategories.map((category) => (
-                  <TabsTrigger key={category.id} value={category.id}>
-                    {category.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              {menuCategories.map((category) => (
-                <TabsContent key={category.id} value={category.id}>
-                  <div className="grid grid-cols-2 gap-2">
-                    {menuItems
-                      .filter((item) => item.category === category.id)
-                      .map((item) => (
-                        <Button
-                          key={item.id}
-                          variant="outline"
-                          className="h-auto py-4 px-4 flex flex-col items-start space-y-1"
-                          onClick={() => addItemToOrder(item)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span>#{item.number}</span>
-                            <span className="font-medium">{item.name}</span>
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {item.price.toFixed(2)} zł
-                          </span>
-                        </Button>
-                      ))}
-                  </div>
-                </TabsContent>
-              ))}
-            </Tabs>
-          </div>
         </div>
       </div>
+
+      {/* Order Details Dialog */}
+      <Dialog
+        open={!!selectedOrder}
+        onOpenChange={() => setSelectedOrder(null)}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Zamówienie #{selectedOrder?.id}</DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-6">
+              <OrderControls
+                order={selectedOrder}
+                onChange={handleUpdateOrder}
+              />
+
+              {/* Items List */}
+              <div className="space-y-4">
+                {selectedOrder.items.map((item) => {
+                  const menuItem = menuItems.find((mi) => mi.id === item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      className="space-y-1 p-3 rounded-lg bg-accent/5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium">
+                            {item.quantity}x #{item.number} {item.name}
+                          </span>
+                        </div>
+                        <span>
+                          {(item.price * item.quantity).toFixed(2)} zł
+                        </span>
+                      </div>
+                      {menuItem?.ingredients && (
+                        <div className="text-sm text-muted-foreground">
+                          {menuItem.ingredients
+                            .map((ing) => ing.name)
+                            .join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="flex justify-between items-center pt-4 border-t">
+                  <span className="font-medium">Razem:</span>
+                  <span className="font-medium">
+                    {selectedOrder.total.toFixed(2)} zł
+                  </span>
+                </div>
+              </div>
+
+              {/* Status Buttons */}
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    handleUpdateOrder({
+                      status:
+                        selectedOrder.status === "pending"
+                          ? "preparing"
+                          : selectedOrder.status === "preparing"
+                            ? "ready"
+                            : selectedOrder.status === "ready"
+                              ? "delivering"
+                              : "delivered",
+                    });
+                    setSelectedOrder(null);
+                  }}
+                >
+                  {selectedOrder.status === "pending"
+                    ? "Rozpocznij przygotowanie"
+                    : selectedOrder.status === "preparing"
+                      ? "Oznacz jako gotowe"
+                      : selectedOrder.status === "ready"
+                        ? "Wydaj"
+                        : "Zakończ"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedOrder(null)}
+                >
+                  Zamknij
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
