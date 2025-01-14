@@ -239,55 +239,40 @@ const WaiterView = ({
 
   return (
     <div className="h-screen bg-background">
-      <div className="grid grid-cols-2 h-full">
-        {/* Left Column */}
-        <div className="flex flex-col">
-          {/* Orders Tables */}
-          <div className="p-4 space-y-4">
-            {/* Pending Orders */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-base font-medium flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-[#FFA500]"></div>
-                  Oczekujące ({statusGroups.pending.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {statusGroups.pending.map(renderOrderCard)}
-                </div>
-              </CardContent>
-            </Card>
+      <div className="grid grid-cols-4 h-full">
+        {/* Orders Columns - Takes up 3 columns */}
+        <div className="col-span-3 grid grid-cols-3 gap-4 p-4">
+          {/* Pending Orders Column */}
+          <div className="space-y-2">
+            <h2 className="font-medium flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#FFA500]"></div>
+              Oczekujące ({statusGroups.pending.length})
+            </h2>
+            <div className="space-y-2">
+              {statusGroups.pending.map(renderOrderCard)}
+            </div>
+          </div>
 
-            {/* Preparing Orders */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-base font-medium flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-[#4169E1]"></div>W
-                  przygotowaniu ({statusGroups.preparing.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {statusGroups.preparing.map(renderOrderCard)}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Preparing Orders Column */}
+          <div className="space-y-2">
+            <h2 className="font-medium flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#4169E1]"></div>W
+              przygotowaniu ({statusGroups.preparing.length})
+            </h2>
+            <div className="space-y-2">
+              {statusGroups.preparing.map(renderOrderCard)}
+            </div>
+          </div>
 
-            {/* Ready Orders */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-base font-medium flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-[#32CD32]"></div>
-                  Gotowe ({statusGroups.ready.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {statusGroups.ready.map(renderOrderCard)}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Ready Orders Column */}
+          <div className="space-y-2">
+            <h2 className="font-medium flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#32CD32]"></div>
+              Gotowe ({statusGroups.ready.length})
+            </h2>
+            <div className="space-y-2">
+              {statusGroups.ready.map(renderOrderCard)}
+            </div>
           </div>
         </div>
 
