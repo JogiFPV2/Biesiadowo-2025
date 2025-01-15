@@ -26,12 +26,6 @@ const SettingsHeader = ({
               Kelner
             </TabsTrigger>
             <TabsTrigger
-              value="kitchen"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Kuchnia
-            </TabsTrigger>
-            <TabsTrigger
               value="ingredients"
               className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
